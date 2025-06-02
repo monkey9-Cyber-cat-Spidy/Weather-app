@@ -62,6 +62,6 @@ A fun and customizable weather forecast application that uses the Open‑Meteo A
 ## Contact 📬
 
 - **LinkedIn:** [kvsmanikanta](https://www.linkedin.com/in/kvsmanikanta)
-- 
+
 - **GitHub:** [monkey9-Cyber-cat-Spidy](https://github.com/monkey9-Cyber-cat-Spidy)
   
