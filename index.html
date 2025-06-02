@@ -4,6 +4,7 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Customizable Weather Forecast 🌤️</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
   <style>
@@ -61,24 +62,14 @@
   <div style="text-align:center;">
     <a id="downloadBtn" href="#" download="weather_data.json">Download Weather JSON</a>
   </div>
-<!-- Button to show README -->
 <div style="text-align: center; margin-top: 20px;">
-  <button onclick="loadReadme()">Show README</button>
+  <button onclick="toggleReadme()">Show Documentation</button>
 </div>
 
-<!-- Container for README content -->
-<div id="readmeContent" style="white-space: pre-wrap; background: #fff; padding: 20px; max-width: 900px; margin: 20px auto; border-radius: 6px; box-shadow: 0 0 10px rgba(0,0,0,0.1); display: none;">
-  <h2>README</h2>
-  <pre id="readmeText" style="overflow-x: auto;"></pre>
+<div id="readmeContainer" style="display: none; background: #fff; padding: 20px; max-width: 900px; margin: 20px auto; border-radius: 6px; box-shadow: 0 0 10px rgba(0,0,0,0.1);">
+  <h2>Documentation</h2>
+  <div id="readmeContent" style="line-height: 1.6;"></div>
 </div>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script>
-    const form = document.getElementById('location-form');
-    const weatherContainer = document.getElementById('weather-data');
-    const downloadBtn = document.getElementById('downloadBtn');
-    let map;
-    let marker;
-
     // GSAP animations on page elements for smooth UX
     gsap.from("header h1", {duration: 1, y: -50, opacity: 0, ease: "bounce"});
     gsap.from("form", {duration: 1, delay: 0.5, opacity: 0, y: 20});
@@ -250,28 +241,25 @@
       const weather = await fetchWeather(location.lat, location.lon);
       renderWeather(weather, location.lat, location.lon, location.display_name);
     });
-// Load and display README.md
-async function loadReadme() {
-  const container = document.getElementById('readmeContent');
-  const textArea = document.getElementById('readmeText');
+// Toggle and load README.md as HTML using marked.js
+let readmeLoaded = false;
+async function toggleReadme() {
+  const container = document.getElementById('readmeContainer');
+  const content = document.getElementById('readmeContent');
 
   if (container.style.display === 'none') {
-    try {
-      const response = await fetch('README.md', {
-        headers: {
-          'Accept': 'text/plain'
-        }
-      });
-      if (!response.ok) throw new Error("README.md not found");
-      const text = await response.text();
-
-      // Ensure it's displayed as plain text, not rendered HTML
-      textArea.textContent = text;
-      container.style.display = 'block';
-    } catch (err) {
-      textArea.textContent = 'Failed to load README.md file.';
-      container.style.display = 'block';
+    if (!readmeLoaded) {
+      try {
+        const response = await fetch('README.md');
+        if (!response.ok) throw new Error("README.md not found");
+        const text = await response.text();
+        content.innerHTML = marked.parse(text);
+        readmeLoaded = true;
+      } catch (err) {
+        content.innerHTML = `<p style="color:red;">Failed to load documentation.</p>`;
+      }
     }
+    container.style.display = 'block';
   } else {
     container.style.display = 'none';
   }
