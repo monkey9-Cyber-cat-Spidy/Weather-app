@@ -250,15 +250,22 @@
       const weather = await fetchWeather(location.lat, location.lon);
       renderWeather(weather, location.lat, location.lon, location.display_name);
     });
-// Load and display README.md file
+// Load and display README.md
 async function loadReadme() {
   const container = document.getElementById('readmeContent');
   const textArea = document.getElementById('readmeText');
+
   if (container.style.display === 'none') {
     try {
-      const response = await fetch('README.md');
+      const response = await fetch('README.md', {
+        headers: {
+          'Accept': 'text/plain'
+        }
+      });
       if (!response.ok) throw new Error("README.md not found");
       const text = await response.text();
+
+      // Ensure it's displayed as plain text, not rendered HTML
       textArea.textContent = text;
       container.style.display = 'block';
     } catch (err) {
