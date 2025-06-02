@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Customizable Weather Forecast 🌤️</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f0f0f0; margin: 0; padding: 20px; }
+    header, form { text-align: center; margin-bottom: 20px; }
+    input[type="text"] { padding: 8px; width: 280px; }
+    button { padding: 8px 14px; cursor: pointer; }
+    .weather-data {
+      background: #fff;
+      padding: 20px;
+      margin: 20px auto;
+      max-width: 900px;
+      border-radius: 6px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      text-align: left;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+    }
+    #map { height: 300px; margin-top: 20px; }
+    #downloadBtn {
+      display: none;
+      margin-top: 10px;
+      background: #007bff;
+      color: white;
+      padding: 8px 12px;
+      border-radius: 4px;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header>
+    <h1>Customizable Weather Forecast 🌤️</h1>
+    <p>Using Open‑Meteo & OpenStreetMap APIs</p>
+  </header>
+  <form id="location-form">
+    <input type="text" id="locationQuery" placeholder="Enter city, state or country" required />
+    <button type="submit">Search Weather</button>
+  </form>
+  <div class="weather-data" id="weather-data">
+    <p>Enter a location to see weather and map.</p>
+  </div>
+
+  <!-- Map container -->
+  <div id="map" style="max-width: 900px; margin: 0 auto;"></div>
+  <div style="text-align:center;">
+    <a id="downloadBtn" href="#" download="weather_data.json">Download Weather JSON</a>
+  </div>
+<!-- Button to show README -->
+<div style="text-align: center; margin-top: 20px;">
+  <button onclick="loadReadme()">Show README</button>
+</div>
+
+<!-- Container for README content -->
+<div id="readmeContent" style="white-space: pre-wrap; background: #fff; padding: 20px; max-width: 900px; margin: 20px auto; border-radius: 6px; box-shadow: 0 0 10px rgba(0,0,0,0.1); display: none;">
+  <h2>README</h2>
+  <pre id="readmeText" style="overflow-x: auto;"></pre>
+</div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script>
+    const form = document.getElementById('location-form');
+    const weatherContainer = document.getElementById('weather-data');
+    const downloadBtn = document.getElementById('downloadBtn');
+    let map;
+    let marker;
+
+    // GSAP animations on page elements for smooth UX
+    gsap.from("header h1", {duration: 1, y: -50, opacity: 0, ease: "bounce"});
+    gsap.from("form", {duration: 1, delay: 0.5, opacity: 0, y: 20});
+    gsap.from(".weather-data", {duration: 1, delay: 1, opacity: 0, y: 20});
+    gsap.from("#downloadBtn", {duration: 1, delay: 1.5, opacity: 0});
+
+    // Geocode location using OpenStreetMap's Nominatim API
+    async function geocodeLocation(query) {
+      try {
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`;
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' }
+        });
+        const data = await response.json();
+        if (!data.length) throw new Error("Location not found");
+
+        const result = data[0];
+        if (!['place', 'boundary'].includes(result.class)) {
+          throw new Error('That does not look like a valid place.');
+        }
+
+        return { lat: result.lat, lon: result.lon, display_name: result.display_name };
+      } catch (err) {
+        console.error("Geocoding failed:", err);
+        weatherContainer.innerHTML = `<p style="color:red;">${err.message}</p>`;
+        return null;
+      }
+    }
+
+    
+    async function fetchWeather(lat, lon) {
+      try {
+        
+        const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&timezone=auto&current_weather=true&hourly=temperature_2m,windspeed_10m,winddirection_10m&daily=temperature_2m_max,temperature_2m_min,weathercode&temperature_unit=celsius&windspeed_unit=kmh`;
+        const res = await fetch(apiUrl);
+        return await res.json();
+      } catch (err) {
+        console.error("Weather fetch error:", err);
+        weatherContainer.innerHTML = `<p style="color:red;">Failed to load weather data</p>`;
+        return null;
+      }
+    }
+
+    // Helper: Map weather codes 
+    function getWeatherDescription(code) {
+      const descriptions = {
+        0: "Clear sky",
+        1: "Mainly clear",
+        2: "Partly cloudy",
+        3: "Overcast",
+        45: "Fog",
+        48: "Depositing rime fog",
+        51: "Light drizzle",
+        53: "Moderate drizzle",
+        55: "Dense drizzle",
+        56: "Light freezing drizzle",
+        57: "Dense freezing drizzle",
+        61: "Slight rain",
+        63: "Moderate rain",
+        65: "Heavy rain",
+        66: "Light freezing rain",
+        67: "Heavy freezing rain",
+        71: "Slight snow fall",
+        73: "Moderate snow fall",
+        75: "Heavy snow fall",
+        77: "Snow grains",
+        80: "Slight rain showers",
+        81: "Moderate rain showers",
+        82: "Violent rain showers",
+        85: "Slight snow showers",
+        86: "Heavy snow showers",
+        95: "Thunderstorm",
+        96: "Thunderstorm with slight hail",
+        99: "Thunderstorm with heavy hail"
+      };
+      return descriptions[code] || "Unknown";
+    }
+
+    // Render weather data
+    function renderWeather(data, lat, lon, displayName) {
+      if (!data || !data.current_weather) {
+        weatherContainer.innerHTML = '<p style="color:red;">Incomplete weather data.</p>';
+        return;
+      }
+
+      
+      const locationInfo = `
+        <h2>Location Information</h2>
+        <table>
+          <tr><th>Place</th><td>${displayName}</td></tr>
+          <tr><th>Latitude</th><td>${lat}</td></tr>
+          <tr><th>Longitude</th><td>${lon}</td></tr>
+          <tr><th>Timezone</th><td>${data.timezone || "N/A"}</td></tr>
+          <tr><th>Elevation (m)</th><td>${data.elevation !== undefined ? data.elevation : "N/A"}</td></tr>
+        </table>`;
+
+      // Current Weather
+      const current = data.current_weather;
+      const currentWeatherHtml = `
+        <h2>Current Weather</h2>
+        <table>
+          <tr><th>Temperature (°C)</th><td>${current.temperature}</td></tr>
+          <tr><th>Wind Speed (km/h)</th><td>${current.windspeed}</td></tr>
+          <tr><th>Wind Direction (°)</th><td>${current.winddirection}</td></tr>
+          <tr><th>Weather</th><td>${getWeatherDescription(current.weathercode)}</td></tr>
+        </table>`;
+
+      // Hourly Forecast (first 12 entries)
+      let hourlyHtml = `<h2>Hourly Forecast (Next 12 Hours)</h2><table><thead><tr><th>Time</th><th>Temp (°C)</th><th>Wind Speed (km/h)</th><th>Wind Direction (°)</th></tr></thead><tbody>`;
+      for (let i = 0; i < Math.min(12, data.hourly.time.length); i++) {
+        hourlyHtml += `<tr>
+          <td>${new Date(data.hourly.time[i]).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
+          <td>${data.hourly.temperature_2m[i]}</td>
+          <td>${data.hourly.windspeed_10m[i]}</td>
+          <td>${data.hourly.winddirection_10m[i]}</td>
+        </tr>`;
+      }
+      hourlyHtml += `</tbody></table>`;
+
+      // Daily Forecast
+      let dailyHtml = `<h2>Daily Forecast</h2><table><thead><tr><th>Date</th><th>Max Temp (°C)</th><th>Min Temp (°C)</th><th>Weather</th></tr></thead><tbody>`;
+      for (let i = 0; i < data.daily.time.length; i++) {
+        dailyHtml += `<tr>
+          <td>${new Date(data.daily.time[i]).toLocaleDateString()}</td>
+          <td>${data.daily.temperature_2m_max[i]}</td>
+          <td>${data.daily.temperature_2m_min[i]}</td>
+          <td>${getWeatherDescription(data.daily.weathercode[i])}</td>
+        </tr>`;
+      }
+      dailyHtml += `</tbody></table>`;
+
+      // Set all combined HTML to container
+      weatherContainer.innerHTML = locationInfo + currentWeatherHtml + hourlyHtml + dailyHtml;
+
+      // JSON download link
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      downloadBtn.href = URL.createObjectURL(blob);
+      downloadBtn.style.display = 'inline-block';
+
+      // Initialize or update Leaflet map with marker
+      if (!map) {
+        map = L.map('map').setView([lat, lon], 10);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+        marker = L.marker([lat, lon]).addTo(map).bindPopup("Location").openPopup();
+      } else {
+        map.setView([lat, lon], 10);
+        if (marker) {
+          marker.setLatLng([lat, lon]).openPopup();
+        } else {
+          marker = L.marker([lat, lon]).addTo(map).bindPopup("Location").openPopup();
+        }
+      }
+    }
+
+    // Form submit
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const query = document.getElementById('locationQuery').value.trim();
+      if (!query) return;
+      weatherContainer.innerHTML = "<p>Loading...</p>";
+      downloadBtn.style.display = 'none';
+
+      const location = await geocodeLocation(query);
+      if (!location) return;
+
+      const weather = await fetchWeather(location.lat, location.lon);
+      renderWeather(weather, location.lat, location.lon, location.display_name);
+    });
+// Load and display README.md file
+async function loadReadme() {
+  const container = document.getElementById('readmeContent');
+  const textArea = document.getElementById('readmeText');
+  if (container.style.display === 'none') {
+    try {
+      const response = await fetch('README.md');
+      if (!response.ok) throw new Error("README.md not found");
+      const text = await response.text();
+      textArea.textContent = text;
+      container.style.display = 'block';
+    } catch (err) {
+      textArea.textContent = 'Failed to load README.md file.';
+      container.style.display = 'block';
+    }
+  } else {
+    container.style.display = 'none';
+  }
+}
+  </script>
+</body>
+</html>
