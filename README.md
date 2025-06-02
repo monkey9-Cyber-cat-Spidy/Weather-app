@@ -1,10 +1,10 @@
-# Customizable Weather Forecast 🌤️
+# Weather Forecast 🌤️
 
 A fun and customizable weather forecast application that uses the Open‑Meteo API to fetch weather data based on your entered location. It integrates OpenStreetMap via Leaflet to show the location on a map. Enjoy smooth GSAP animations and easily download the full JSON response! 🎉
 
 ## Live Demo 🚀
 
-[Live Demo]()
+[Live Demo](https://weather-app-zeta-eight-41.vercel.app/)
 
 ## Features ✨
 
